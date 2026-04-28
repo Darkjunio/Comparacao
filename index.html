@@ -85,8 +85,6 @@ button {
 <h3>Resultado PROCV Inteligente</h3>
 <div id="procv"></div>
 
-<h3>Diferença Geral (linha x coluna)</h3>
-<div id="geral"></div>
 </div>
 
 </div>
@@ -104,7 +102,7 @@ function normalizar(txt){
         .trim();
 }
 
-// ===== SIMILARIDADE SEGURA =====
+// ===== SIMILARIDADE =====
 function similar(a, b){
     a = normalizar(a);
     b = normalizar(b);
@@ -135,7 +133,7 @@ function detectarColuna(cols){
     return cols[0];
 }
 
-// ===== LER ARQUIVO =====
+// ===== LER =====
 function lerArquivo(arq){
     return new Promise(res=>{
         const r = new FileReader();
@@ -190,7 +188,7 @@ async function comparar(){
     executar(r1.coluna);
 }
 
-// ===== COMPARAÇÃO PROCV REAL =====
+// ===== EXECUTAR (SOMENTE __EMPTY_1) =====
 function executar(col){
     const {r1, r2} = dadosGlobais;
 
@@ -204,6 +202,8 @@ function executar(col){
 
     let procv = [];
 
+    const colunaAlvo = "__EMPTY_1";
+
     r1.dados.forEach(l1=>{
         const chave = normalizar(l1[col]);
 
@@ -211,10 +211,9 @@ function executar(col){
 
         let l2 = mapaExato.get(chave);
 
-        let status = "IGUAL";
         let score = 1;
 
-        // 🔍 tentativa fuzzy (controlada)
+        // fuzzy
         if(!l2){
             let melhor = null;
             let melhorScore = 0;
@@ -230,7 +229,6 @@ function executar(col){
 
             if(melhorScore >= 0.85){
                 l2 = melhor;
-                status = "APROXIMADO";
                 score = melhorScore;
             }
         }
@@ -239,7 +237,7 @@ function executar(col){
             procv.push({
                 ID: l1[col],
                 Status: "NÃO ENCONTRADO",
-                Campo: "",
+                Campo: colunaAlvo,
                 Antes: "",
                 Depois: "",
                 Score: 0
@@ -247,61 +245,21 @@ function executar(col){
             return;
         }
 
-        const cols = [...new Set([...Object.keys(l1), ...Object.keys(l2)])];
+        const v1 = l1[colunaAlvo] || "";
+        const v2 = l2[colunaAlvo] || "";
 
-        cols.forEach(c=>{
-            const v1 = l1[c] || "";
-            const v2 = l2[c] || "";
-
-            if(normalizar(v1) === normalizar(v2)){
-                procv.push({
-                    ID: l1[col],
-                    Status: status === "APROXIMADO" ? "APROX IGUAL" : "IGUAL",
-                    Campo: c,
-                    Antes: v1,
-                    Depois: v2,
-                    Score: score
-                });
-            } else {
-                procv.push({
-                    ID: l1[col],
-                    Status: status === "APROXIMADO" ? "APROX ALTERADO" : "ALTERADO",
-                    Campo: c,
-                    Antes: v1,
-                    Depois: v2,
-                    Score: score
-                });
-            }
+        procv.push({
+            ID: l1[col],
+            Status: normalizar(v1) === normalizar(v2) ? "IGUAL" : "ALTERADO",
+            Campo: colunaAlvo,
+            Antes: v1,
+            Depois: v2,
+            Score: score
         });
 
     });
 
-    // ===== DIFERENÇA GERAL =====
-    let geral = [];
-    const max = Math.max(r1.dados.length, r2.dados.length);
-
-    for(let i=0;i<max;i++){
-        const l1 = r1.dados[i] || {};
-        const l2 = r2.dados[i] || {};
-
-        const cols = [...new Set([...Object.keys(l1), ...Object.keys(l2)])];
-
-        cols.forEach(c=>{
-            const v1 = l1[c] || "";
-            const v2 = l2[c] || "";
-
-            if(normalizar(v1) !== normalizar(v2)){
-                geral.push({
-                    Linha: i+1,
-                    Coluna: c,
-                    Antes: v1,
-                    Depois: v2
-                });
-            }
-        });
-    }
-
-    resultadoComparacao = {procv, geral};
+    resultadoComparacao = {procv};
 
     mostrar();
 }
@@ -314,8 +272,7 @@ function mostrar(){
     <tr><th>ID</th><th>Status</th><th>Campo</th><th>Antes</th><th>Depois</th><th>Score</th></tr>`;
 
     resultadoComparacao.procv.forEach(p=>{
-        let classe = p.Status.includes("IGUAL") ? "ok" :
-                     p.Status.includes("APROX") ? "warn" : "dif";
+        let classe = p.Status === "IGUAL" ? "ok" : "dif";
 
         html += `<tr class="${classe}">
             <td>${p.ID}</td>
@@ -330,22 +287,6 @@ function mostrar(){
     html += "</table>";
 
     procv.innerHTML = html;
-
-    let g = `<table class="tabela">
-    <tr><th>Linha</th><th>Coluna</th><th>Antes</th><th>Depois</th></tr>`;
-
-    resultadoComparacao.geral.forEach(d=>{
-        g += `<tr class="dif">
-            <td>${d.Linha}</td>
-            <td>${d.Coluna}</td>
-            <td>${d.Antes}</td>
-            <td>${d.Depois}</td>
-        </tr>`;
-    });
-
-    g += "</table>";
-
-    geral.innerHTML = g;
 }
 
 // ===== EXPORTAR =====
@@ -354,15 +295,10 @@ function exportar(){
 
     XLSX.utils.book_append_sheet(wb,
         XLSX.utils.json_to_sheet(resultadoComparacao.procv),
-        "PROCV"
+        "RESULTADO"
     );
 
-    XLSX.utils.book_append_sheet(wb,
-        XLSX.utils.json_to_sheet(resultadoComparacao.geral),
-        "GERAL"
-    );
-
-    XLSX.writeFile(wb, "comparacao_pro.xlsx");
+    XLSX.writeFile(wb, "comparacao_empty1.xlsx");
 }
 </script>
 
