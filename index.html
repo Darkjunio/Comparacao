@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Comparador Profissional</title>
+<title>Comparador Inteligente</title>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -12,9 +12,7 @@
 :root {
     --primary: #2563eb;
     --bg: #f1f5f9;
-    --card: #ffffff;
-    --danger: #ef4444;
-    --success: #22c55e;
+    --card: #fff;
 }
 
 body {
@@ -25,64 +23,54 @@ body {
 
 .container {
     max-width: 1100px;
-    margin: auto;
-    padding: 20px;
-}
-
-.header {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.header h1 {
-    font-size: 28px;
+    margin:auto;
+    padding:20px;
 }
 
 .card {
-    background: var(--card);
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    margin-bottom: 20px;
-    animation: fadeIn 0.4s ease;
+    background:var(--card);
+    padding:25px;
+    border-radius:12px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.08);
+    margin-bottom:20px;
 }
 
-input, button {
-    width: 100%;
-    padding: 12px;
-    margin-top: 10px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
+h1 {
+    text-align:center;
+}
+
+input, button, select {
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    border-radius:8px;
+    border:1px solid #ddd;
 }
 
 button {
-    background: var(--primary);
-    color: white;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-    transition: 0.2s;
-}
-
-button:hover {
-    transform: translateY(-1px);
-    opacity: 0.9;
+    background:var(--primary);
+    color:white;
+    border:none;
+    cursor:pointer;
 }
 
 .loading {
     display:none;
     text-align:center;
-    margin-top:15px;
 }
 
 .spinner {
-    border: 4px solid #eee;
-    border-top: 4px solid var(--primary);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    border:4px solid #eee;
+    border-top:4px solid var(--primary);
+    border-radius:50%;
+    width:40px;
+    height:40px;
     margin:auto;
-    animation: spin 1s linear infinite;
+    animation:spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {transform:rotate(360deg);}
 }
 
 .resultado {
@@ -95,7 +83,6 @@ button:hover {
     padding:5px 10px;
     margin:5px;
     border-radius:6px;
-    font-size:14px;
 }
 
 .tabela {
@@ -113,13 +100,9 @@ button:hover {
     background:#fee2e2;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-@keyframes fadeIn {
-    from {opacity:0; transform:translateY(10px);}
-    to {opacity:1; transform:translateY(0);}
+.info {
+    margin-top:10px;
+    font-size:14px;
 }
 </style>
 </head>
@@ -128,21 +111,22 @@ button:hover {
 
 <div class="container">
 
-<div class="header">
-    <h1>📊 Comparador de Planilhas</h1>
-    <p>Sistema profissional de análise de dados</p>
-</div>
+<h1>📊 Comparador Inteligente</h1>
 
 <div class="card">
     <input type="file" id="arquivo1">
     <input type="file" id="arquivo2">
-    <input type="text" id="coluna" placeholder="Coluna chave (ex: ID)">
+
     <button onclick="comparar()">Comparar</button>
 
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        <p>Processando planilhas...</p>
+        <p>Processando...</p>
     </div>
+
+    <div class="info" id="infoColuna"></div>
+
+    <select id="trocaColuna" style="display:none;"></select>
 </div>
 
 <div class="card resultado" id="resultado">
@@ -162,37 +146,45 @@ button:hover {
 
 <script>
 let resultadoComparacao = {};
+let dadosGlobais = {};
 
-function lerArquivo(arquivo, coluna) {
+function detectarColunaChave(colunas) {
+    const prioridades = ["id","codigo","processo","numero"];
+
+    const lower = colunas.map(c=>c.toLowerCase());
+
+    for (let p of prioridades) {
+        const i = lower.findIndex(c=>c.includes(p));
+        if (i !== -1) return colunas[i];
+    }
+
+    return colunas[0];
+}
+
+function lerArquivo(arquivo) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
 
         reader.onload = e => {
             const data = new Uint8Array(e.target.result);
-            const wb = XLSX.read(data, {type:'array'});
+            const wb = XLSX.read(data,{type:'array'});
             const ws = wb.Sheets[wb.SheetNames[0]];
 
             const linhas = XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
 
-            let idx=-1;
-            const chave = coluna.toLowerCase().trim();
-
-            for(let i=0;i<linhas.length;i++){
-                const linha = linhas[i].map(c=>String(c).toLowerCase().trim());
-                if(linha.includes(chave)){
-                    idx=i;
-                    break;
-                }
-            }
-
-            if(idx===-1) return reject("Coluna não encontrada");
+            let idx = linhas.findIndex(l => l.length > 1);
 
             const dados = XLSX.utils.sheet_to_json(ws,{
                 defval:"",
                 range: idx
             });
 
-            resolve(dados);
+            if (!dados.length) return reject("Planilha vazia");
+
+            const colunas = Object.keys(dados[0]);
+            const coluna = detectarColunaChave(colunas);
+
+            resolve({dados,coluna,colunas});
         };
 
         reader.readAsArrayBuffer(arquivo);
@@ -202,24 +194,43 @@ function lerArquivo(arquivo, coluna) {
 async function comparar() {
     const a1 = document.getElementById("arquivo1").files[0];
     const a2 = document.getElementById("arquivo2").files[0];
-    const coluna = document.getElementById("coluna").value;
 
-    if(!a1 || !a2 || !coluna){
-        alert("Preencha tudo");
+    if(!a1 || !a2){
+        alert("Selecione os dois arquivos");
         return;
     }
 
     document.getElementById("loading").style.display="block";
 
-    const d1 = await lerArquivo(a1,coluna);
-    const d2 = await lerArquivo(a2,coluna);
+    const r1 = await lerArquivo(a1);
+    const r2 = await lerArquivo(a2);
 
     document.getElementById("loading").style.display="none";
 
+    dadosGlobais = {r1,r2};
+
+    let coluna = r1.coluna;
+
+    document.getElementById("infoColuna").innerHTML =
+        `🔍 Coluna detectada: <b>${coluna}</b>`;
+
+    const select = document.getElementById("trocaColuna");
+    select.innerHTML = r1.colunas.map(c=>`<option>${c}</option>`).join("");
+    select.value = coluna;
+    select.style.display="block";
+
+    select.onchange = () => executarComparacao(select.value);
+
+    executarComparacao(coluna);
+}
+
+function executarComparacao(coluna) {
+    const {r1,r2} = dadosGlobais;
+
     const m1=new Map(), m2=new Map();
 
-    d1.forEach(l=>{if(l[coluna]) m1.set(l[coluna],l)});
-    d2.forEach(l=>{if(l[coluna]) m2.set(l[coluna],l)});
+    r1.dados.forEach(l=>{if(l[coluna]) m1.set(l[coluna],l)});
+    r2.dados.forEach(l=>{if(l[coluna]) m2.set(l[coluna],l)});
 
     let apenas1=[], apenas2=[], alterados=[];
 
