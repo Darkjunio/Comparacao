@@ -4,85 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Comparador Profissional Completo</title>
+<title>Comparador Inteligente Avançado</title>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
-:root {
-    --primary:#2563eb;
-    --bg:#f1f5f9;
-}
-
-body {
-    margin:0;
-    font-family:'Segoe UI';
-    background:var(--bg);
-}
-
-.container {
-    max-width:1100px;
-    margin:auto;
-    padding:20px;
-}
-
-.card {
-    background:#fff;
-    padding:20px;
-    border-radius:12px;
-    margin-bottom:20px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.08);
-}
-
-input,button,select {
-    width:100%;
-    padding:12px;
-    margin-top:10px;
-    border-radius:8px;
-    border:1px solid #ddd;
-}
-
-button {
-    background:var(--primary);
-    color:#fff;
-    border:none;
-    cursor:pointer;
-}
-
+body {font-family:'Segoe UI';background:#f1f5f9;margin:0;padding:20px;}
+.container {max-width:1100px;margin:auto;}
+.card {background:#fff;padding:20px;border-radius:10px;margin-bottom:20px;}
+input,button,select {width:100%;padding:10px;margin-top:10px;}
+button {background:#2563eb;color:#fff;border:none;cursor:pointer;}
 .loading {display:none;text-align:center;}
-.spinner {
-    border:4px solid #eee;
-    border-top:4px solid var(--primary);
-    border-radius:50%;
-    width:40px;height:40px;
-    margin:auto;
-    animation:spin 1s linear infinite;
-}
-
+.spinner {border:4px solid #eee;border-top:4px solid #2563eb;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:auto;}
 @keyframes spin {to{transform:rotate(360deg)}}
-
-.tag {
-    display:inline-block;
-    background:#e2e8f0;
-    padding:5px 10px;
-    margin:5px;
-    border-radius:6px;
-}
-
-.tabela {
-    width:100%;
-    border-collapse:collapse;
-    margin-top:10px;
-}
-
-.tabela th,.tabela td {
-    border:1px solid #ddd;
-    padding:8px;
-}
-
+.tabela {width:100%;border-collapse:collapse;margin-top:10px;}
+.tabela td,.tabela th {border:1px solid #ddd;padding:6px;}
 .dif {background:#fee2e2;}
-
-.resultado {display:none;}
+.ok {background:#dcfce7;}
 </style>
 </head>
 
@@ -90,58 +28,66 @@ button {
 
 <div class="container">
 
-<h1>📊 Comparador Completo</h1>
+<h2>📊 Comparador Inteligente (Excel Avançado)</h2>
 
 <div class="card">
-    <input type="file" id="arquivo1">
-    <input type="file" id="arquivo2">
-    <button onclick="comparar()">Comparar</button>
+<input type="file" id="arquivo1">
+<input type="file" id="arquivo2">
+<button onclick="comparar()">Comparar</button>
 
-    <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <p>Processando...</p>
-    </div>
-
-    <div id="info"></div>
-    <select id="colunaSelect" style="display:none;"></select>
+<div class="loading" id="loading">
+<div class="spinner"></div>
+<p>Processando...</p>
 </div>
 
-<div class="card resultado" id="resultado">
+<div id="info"></div>
+<select id="colunaSelect" style="display:none;"></select>
+</div>
 
+<div class="card" id="resultado" style="display:none;">
 <button onclick="exportar()">📥 Exportar Excel</button>
 
-<h3>Apenas na Planilha 1</h3>
-<div id="apenas1"></div>
+<h3>Resultado PROCV Inteligente</h3>
+<div id="procv"></div>
 
-<h3>Apenas na Planilha 2</h3>
-<div id="apenas2"></div>
-
-<h3>Alterados (por ID)</h3>
-<div id="alterados"></div>
-
-<h3>Diferença Geral (linha x coluna)</h3>
+<h3>Diferença Geral</h3>
 <div id="geral"></div>
-
 </div>
 
 </div>
 
 <script>
-let resultadoComparacao = {};
 let dadosGlobais = {};
+let resultadoComparacao = {};
 
-function detectarColuna(colunas){
-    const keys=["id","codigo","processo","numero"];
-    const lower=colunas.map(c=>c.toLowerCase());
-    for(let k of keys){
-        const i=lower.findIndex(c=>c.includes(k));
-        if(i!=-1) return colunas[i];
-    }
-    return colunas[0];
+function normalizar(txt){
+    return String(txt)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g,"")
+        .trim();
 }
 
-function lerArquivo(arquivo){
-    return new Promise((res,rej)=>{
+// similaridade simples
+function similar(a,b){
+    a = normalizar(a);
+    b = normalizar(b);
+    if(a === b) return 1;
+    return a.includes(b) || b.includes(a) ? 0.7 : 0;
+}
+
+function detectarColuna(cols){
+    const keys=["id","codigo","processo","numero","nome"];
+    const lower=cols.map(c=>c.toLowerCase());
+    for(let k of keys){
+        const i=lower.findIndex(c=>c.includes(k));
+        if(i!=-1) return cols[i];
+    }
+    return cols[0];
+}
+
+function lerArquivo(arq){
+    return new Promise(res=>{
         const r=new FileReader();
         r.onload=e=>{
             const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
@@ -149,38 +95,16 @@ function lerArquivo(arquivo){
             const linhas=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
             let idx=linhas.findIndex(l=>l.length>1);
             const dados=XLSX.utils.sheet_to_json(ws,{range:idx,defval:""});
-            if(!dados.length) return rej("Planilha vazia");
             const cols=Object.keys(dados[0]);
-            res({dados,coluna:detectarColuna(cols),colunas:cols});
+            res({dados,coluna:detectarColuna(cols),cols});
         };
-        r.readAsArrayBuffer(arquivo);
+        r.readAsArrayBuffer(arq);
     });
 }
 
-function compararGeral(d1,d2){
-    let res=[];
-    const max=Math.max(d1.length,d2.length);
-
-    for(let i=0;i<max;i++){
-        const l1=d1[i]||{};
-        const l2=d2[i]||{};
-        const cols=[...new Set([...Object.keys(l1),...Object.keys(l2)])];
-
-        cols.forEach(c=>{
-            const v1=l1[c]||"";
-            const v2=l2[c]||"";
-            if(v1!==v2){
-                res.push({linha:i+1,coluna:c,antes:v1,depois:v2});
-            }
-        });
-    }
-    return res;
-}
-
 async function comparar(){
-    const a1=document.getElementById("arquivo1").files[0];
-    const a2=document.getElementById("arquivo2").files[0];
-
+    const a1=arquivo1.files[0];
+    const a2=arquivo2.files[0];
     if(!a1||!a2){alert("Selecione os arquivos");return;}
 
     loading.style.display="block";
@@ -192,121 +116,88 @@ async function comparar(){
 
     dadosGlobais={r1,r2};
 
-    let col=r1.coluna;
-
-    info.innerHTML=`Coluna detectada: <b>${col}</b>`;
-
-    colunaSelect.innerHTML=r1.colunas.map(c=>`<option>${c}</option>`).join("");
-    colunaSelect.value=col;
+    colunaSelect.innerHTML=r1.cols.map(c=>`<option>${c}</option>`).join("");
+    colunaSelect.value=r1.coluna;
     colunaSelect.style.display="block";
+
+    info.innerHTML=`Coluna detectada: <b>${r1.coluna}</b>`;
 
     colunaSelect.onchange=()=>executar(colunaSelect.value);
 
-    executar(col);
+    executar(r1.coluna);
 }
 
 function executar(col){
     const {r1,r2}=dadosGlobais;
 
-    const m1=new Map(), m2=new Map();
+    let procv=[];
 
-    r1.dados.forEach(l=>{if(l[col])m1.set(l[col],l)});
-    r2.dados.forEach(l=>{if(l[col])m2.set(l[col],l)});
+    r1.dados.forEach(l1=>{
+        let melhor=null;
+        let melhorScore=0;
 
-    let apenas1=[],apenas2=[],alterados=[];
+        r2.dados.forEach(l2=>{
+            const score=similar(l1[col],l2[col]);
+            if(score>melhorScore){
+                melhorScore=score;
+                melhor=l2;
+            }
+        });
 
-    for(let id of m1.keys()) if(!m2.has(id)) apenas1.push(id);
-    for(let id of m2.keys()) if(!m1.has(id)) apenas2.push(id);
-
-    for(let id of m1.keys()){
-        if(m2.has(id)){
-            const l1=m1.get(id),l2=m2.get(id);
-            const cols=[...new Set([...Object.keys(l1),...Object.keys(l2)])];
-            let difs=[];
-            cols.forEach(c=>{
-                if((l1[c]||"")!=(l2[c]||"")){
-                    difs.push({c,v1:l1[c],v2:l2[c]});
-                }
-            });
-            if(difs.length) alterados.push({id,difs});
+        if(!melhor){
+            procv.push({ID:l1[col],Status:"NÃO ENCONTRADO"});
+            return;
         }
-    }
 
-    const geral=compararGeral(r1.dados,r2.dados);
+        const cols=[...new Set([...Object.keys(l1),...Object.keys(melhor)])];
 
-    resultadoComparacao={apenas1,apenas2,alterados,geral};
+        cols.forEach(c=>{
+            const v1=l1[c]||"";
+            const v2=melhor[c]||"";
+
+            if(normalizar(v1)===normalizar(v2)){
+                procv.push({ID:l1[col],Status:"IGUAL",Campo:c,Antes:v1,Depois:v2});
+            }else{
+                procv.push({ID:l1[col],Status:"ALTERADO",Campo:c,Antes:v1,Depois:v2});
+            }
+        });
+    });
+
+    resultadoComparacao.procv=procv;
+
     mostrar();
 }
 
 function mostrar(){
     resultado.style.display="block";
 
-    apenas1.innerHTML=resultadoComparacao.apenas1.map(i=>`<span class="tag">${i}</span>`).join("");
-    apenas2.innerHTML=resultadoComparacao.apenas2.map(i=>`<span class="tag">${i}</span>`).join("");
+    let html=`<table class="tabela">
+    <tr><th>ID</th><th>Status</th><th>Campo</th><th>Antes</th><th>Depois</th></tr>`;
 
-    let html="";
-    resultadoComparacao.alterados.forEach(p=>{
-        html+=`<h4>${p.id}</h4><table class="tabela"><tr><th>Campo</th><th>Antes</th><th>Depois</th></tr>`;
-        p.difs.forEach(d=>{
-            html+=`<tr class="dif"><td>${d.c}</td><td>${d.v1}</td><td>${d.v2}</td></tr>`;
-        });
-        html+="</table>";
-    });
-    alterados.innerHTML=html;
-
-    let g="";
-    resultadoComparacao.geral.forEach(d=>{
-        g+=`<tr class="dif"><td>${d.linha}</td><td>${d.coluna}</td><td>${d.antes}</td><td>${d.depois}</td></tr>`;
+    resultadoComparacao.procv.forEach(p=>{
+        html+=`<tr class="${p.Status==='IGUAL'?'ok':'dif'}">
+        <td>${p.ID}</td>
+        <td>${p.Status}</td>
+        <td>${p.Campo||""}</td>
+        <td>${p.Antes||""}</td>
+        <td>${p.Depois||""}</td>
+        </tr>`;
     });
 
-    geral.innerHTML=`
-    <table class="tabela">
-    <tr><th>Linha</th><th>Coluna</th><th>Antes</th><th>Depois</th></tr>
-    ${g}
-    </table>`;
+    html+="</table>";
+
+    procv.innerHTML=html;
 }
 
 function exportar(){
     const wb=XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(wb,
-        XLSX.utils.json_to_sheet([
-            {Tipo:"Apenas1",Qtd:resultadoComparacao.apenas1.length},
-            {Tipo:"Apenas2",Qtd:resultadoComparacao.apenas2.length},
-            {Tipo:"Alterados",Qtd:resultadoComparacao.alterados.length},
-            {Tipo:"Dif Geral",Qtd:resultadoComparacao.geral.length}
-        ]),
-        "Resumo"
+        XLSX.utils.json_to_sheet(resultadoComparacao.procv),
+        "PROCV"
     );
 
-    XLSX.utils.book_append_sheet(wb,
-        XLSX.utils.json_to_sheet(resultadoComparacao.apenas1.map(i=>({ID:i}))),
-        "Apenas1"
-    );
-
-    XLSX.utils.book_append_sheet(wb,
-        XLSX.utils.json_to_sheet(resultadoComparacao.apenas2.map(i=>({ID:i}))),
-        "Apenas2"
-    );
-
-    let alt=[];
-    resultadoComparacao.alterados.forEach(p=>{
-        p.difs.forEach(d=>{
-            alt.push({ID:p.id,Campo:d.c,Antes:d.v1,Depois:d.v2});
-        });
-    });
-
-    XLSX.utils.book_append_sheet(wb,
-        XLSX.utils.json_to_sheet(alt),
-        "Alterados"
-    );
-
-    XLSX.utils.book_append_sheet(wb,
-        XLSX.utils.json_to_sheet(resultadoComparacao.geral),
-        "Geral"
-    );
-
-    XLSX.writeFile(wb,"comparacao_completa.xlsx");
+    XLSX.writeFile(wb,"comparacao_avancada.xlsx");
 }
 </script>
 
