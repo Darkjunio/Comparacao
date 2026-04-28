@@ -4,42 +4,37 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Comparador Inteligente</title>
+<title>Comparador Profissional Completo</title>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
 :root {
-    --primary: #2563eb;
-    --bg: #f1f5f9;
-    --card: #fff;
+    --primary:#2563eb;
+    --bg:#f1f5f9;
 }
 
 body {
     margin:0;
-    font-family: 'Segoe UI', sans-serif;
-    background: var(--bg);
+    font-family:'Segoe UI';
+    background:var(--bg);
 }
 
 .container {
-    max-width: 1100px;
+    max-width:1100px;
     margin:auto;
     padding:20px;
 }
 
 .card {
-    background:var(--card);
-    padding:25px;
+    background:#fff;
+    padding:20px;
     border-radius:12px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.08);
     margin-bottom:20px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.08);
 }
 
-h1 {
-    text-align:center;
-}
-
-input, button, select {
+input,button,select {
     width:100%;
     padding:12px;
     margin-top:10px;
@@ -49,33 +44,22 @@ input, button, select {
 
 button {
     background:var(--primary);
-    color:white;
+    color:#fff;
     border:none;
     cursor:pointer;
 }
 
-.loading {
-    display:none;
-    text-align:center;
-}
-
+.loading {display:none;text-align:center;}
 .spinner {
     border:4px solid #eee;
     border-top:4px solid var(--primary);
     border-radius:50%;
-    width:40px;
-    height:40px;
+    width:40px;height:40px;
     margin:auto;
     animation:spin 1s linear infinite;
 }
 
-@keyframes spin {
-    to {transform:rotate(360deg);}
-}
-
-.resultado {
-    display:none;
-}
+@keyframes spin {to{transform:rotate(360deg)}}
 
 .tag {
     display:inline-block;
@@ -87,23 +71,18 @@ button {
 
 .tabela {
     width:100%;
-    border-collapse: collapse;
+    border-collapse:collapse;
     margin-top:10px;
 }
 
-.tabela th, .tabela td {
+.tabela th,.tabela td {
     border:1px solid #ddd;
     padding:8px;
 }
 
-.dif {
-    background:#fee2e2;
-}
+.dif {background:#fee2e2;}
 
-.info {
-    margin-top:10px;
-    font-size:14px;
-}
+.resultado {display:none;}
 </style>
 </head>
 
@@ -111,12 +90,11 @@ button {
 
 <div class="container">
 
-<h1>📊 Comparador Inteligente</h1>
+<h1>📊 Comparador Completo</h1>
 
 <div class="card">
     <input type="file" id="arquivo1">
     <input type="file" id="arquivo2">
-
     <button onclick="comparar()">Comparar</button>
 
     <div class="loading" id="loading">
@@ -124,22 +102,26 @@ button {
         <p>Processando...</p>
     </div>
 
-    <div class="info" id="infoColuna"></div>
-
-    <select id="trocaColuna" style="display:none;"></select>
+    <div id="info"></div>
+    <select id="colunaSelect" style="display:none;"></select>
 </div>
 
 <div class="card resultado" id="resultado">
-    <button onclick="exportar()">📥 Exportar Excel</button>
 
-    <h3>Apenas na Planilha 1</h3>
-    <div id="apenas1"></div>
+<button onclick="exportar()">📥 Exportar Excel</button>
 
-    <h3>Apenas na Planilha 2</h3>
-    <div id="apenas2"></div>
+<h3>Apenas na Planilha 1</h3>
+<div id="apenas1"></div>
 
-    <h3>Alterações</h3>
-    <div id="alterados"></div>
+<h3>Apenas na Planilha 2</h3>
+<div id="apenas2"></div>
+
+<h3>Alterados (por ID)</h3>
+<div id="alterados"></div>
+
+<h3>Diferença Geral (linha x coluna)</h3>
+<div id="geral"></div>
+
 </div>
 
 </div>
@@ -148,135 +130,140 @@ button {
 let resultadoComparacao = {};
 let dadosGlobais = {};
 
-function detectarColunaChave(colunas) {
-    const prioridades = ["id","codigo","processo","numero"];
-
-    const lower = colunas.map(c=>c.toLowerCase());
-
-    for (let p of prioridades) {
-        const i = lower.findIndex(c=>c.includes(p));
-        if (i !== -1) return colunas[i];
+function detectarColuna(colunas){
+    const keys=["id","codigo","processo","numero"];
+    const lower=colunas.map(c=>c.toLowerCase());
+    for(let k of keys){
+        const i=lower.findIndex(c=>c.includes(k));
+        if(i!=-1) return colunas[i];
     }
-
     return colunas[0];
 }
 
-function lerArquivo(arquivo) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-
-        reader.onload = e => {
-            const data = new Uint8Array(e.target.result);
-            const wb = XLSX.read(data,{type:'array'});
-            const ws = wb.Sheets[wb.SheetNames[0]];
-
-            const linhas = XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-
-            let idx = linhas.findIndex(l => l.length > 1);
-
-            const dados = XLSX.utils.sheet_to_json(ws,{
-                defval:"",
-                range: idx
-            });
-
-            if (!dados.length) return reject("Planilha vazia");
-
-            const colunas = Object.keys(dados[0]);
-            const coluna = detectarColunaChave(colunas);
-
-            resolve({dados,coluna,colunas});
+function lerArquivo(arquivo){
+    return new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=e=>{
+            const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+            const ws=wb.Sheets[wb.SheetNames[0]];
+            const linhas=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+            let idx=linhas.findIndex(l=>l.length>1);
+            const dados=XLSX.utils.sheet_to_json(ws,{range:idx,defval:""});
+            if(!dados.length) return rej("Planilha vazia");
+            const cols=Object.keys(dados[0]);
+            res({dados,coluna:detectarColuna(cols),colunas:cols});
         };
-
-        reader.readAsArrayBuffer(arquivo);
+        r.readAsArrayBuffer(arquivo);
     });
 }
 
-async function comparar() {
-    const a1 = document.getElementById("arquivo1").files[0];
-    const a2 = document.getElementById("arquivo2").files[0];
+function compararGeral(d1,d2){
+    let res=[];
+    const max=Math.max(d1.length,d2.length);
 
-    if(!a1 || !a2){
-        alert("Selecione os dois arquivos");
-        return;
+    for(let i=0;i<max;i++){
+        const l1=d1[i]||{};
+        const l2=d2[i]||{};
+        const cols=[...new Set([...Object.keys(l1),...Object.keys(l2)])];
+
+        cols.forEach(c=>{
+            const v1=l1[c]||"";
+            const v2=l2[c]||"";
+            if(v1!==v2){
+                res.push({linha:i+1,coluna:c,antes:v1,depois:v2});
+            }
+        });
     }
-
-    document.getElementById("loading").style.display="block";
-
-    const r1 = await lerArquivo(a1);
-    const r2 = await lerArquivo(a2);
-
-    document.getElementById("loading").style.display="none";
-
-    dadosGlobais = {r1,r2};
-
-    let coluna = r1.coluna;
-
-    document.getElementById("infoColuna").innerHTML =
-        `🔍 Coluna detectada: <b>${coluna}</b>`;
-
-    const select = document.getElementById("trocaColuna");
-    select.innerHTML = r1.colunas.map(c=>`<option>${c}</option>`).join("");
-    select.value = coluna;
-    select.style.display="block";
-
-    select.onchange = () => executarComparacao(select.value);
-
-    executarComparacao(coluna);
+    return res;
 }
 
-function executarComparacao(coluna) {
-    const {r1,r2} = dadosGlobais;
+async function comparar(){
+    const a1=document.getElementById("arquivo1").files[0];
+    const a2=document.getElementById("arquivo2").files[0];
+
+    if(!a1||!a2){alert("Selecione os arquivos");return;}
+
+    loading.style.display="block";
+
+    const r1=await lerArquivo(a1);
+    const r2=await lerArquivo(a2);
+
+    loading.style.display="none";
+
+    dadosGlobais={r1,r2};
+
+    let col=r1.coluna;
+
+    info.innerHTML=`Coluna detectada: <b>${col}</b>`;
+
+    colunaSelect.innerHTML=r1.colunas.map(c=>`<option>${c}</option>`).join("");
+    colunaSelect.value=col;
+    colunaSelect.style.display="block";
+
+    colunaSelect.onchange=()=>executar(colunaSelect.value);
+
+    executar(col);
+}
+
+function executar(col){
+    const {r1,r2}=dadosGlobais;
 
     const m1=new Map(), m2=new Map();
 
-    r1.dados.forEach(l=>{if(l[coluna]) m1.set(l[coluna],l)});
-    r2.dados.forEach(l=>{if(l[coluna]) m2.set(l[coluna],l)});
+    r1.dados.forEach(l=>{if(l[col])m1.set(l[col],l)});
+    r2.dados.forEach(l=>{if(l[col])m2.set(l[col],l)});
 
-    let apenas1=[], apenas2=[], alterados=[];
+    let apenas1=[],apenas2=[],alterados=[];
 
     for(let id of m1.keys()) if(!m2.has(id)) apenas1.push(id);
     for(let id of m2.keys()) if(!m1.has(id)) apenas2.push(id);
 
     for(let id of m1.keys()){
         if(m2.has(id)){
-            const l1=m1.get(id), l2=m2.get(id);
+            const l1=m1.get(id),l2=m2.get(id);
             const cols=[...new Set([...Object.keys(l1),...Object.keys(l2)])];
             let difs=[];
-
             cols.forEach(c=>{
                 if((l1[c]||"")!=(l2[c]||"")){
                     difs.push({c,v1:l1[c],v2:l2[c]});
                 }
             });
-
             if(difs.length) alterados.push({id,difs});
         }
     }
 
-    resultadoComparacao={apenas1,apenas2,alterados};
+    const geral=compararGeral(r1.dados,r2.dados);
+
+    resultadoComparacao={apenas1,apenas2,alterados,geral};
     mostrar();
 }
 
 function mostrar(){
-    document.getElementById("resultado").style.display="block";
+    resultado.style.display="block";
 
-    document.getElementById("apenas1").innerHTML =
-        resultadoComparacao.apenas1.map(i=>`<span class="tag">${i}</span>`).join("");
-
-    document.getElementById("apenas2").innerHTML =
-        resultadoComparacao.apenas2.map(i=>`<span class="tag">${i}</span>`).join("");
+    apenas1.innerHTML=resultadoComparacao.apenas1.map(i=>`<span class="tag">${i}</span>`).join("");
+    apenas2.innerHTML=resultadoComparacao.apenas2.map(i=>`<span class="tag">${i}</span>`).join("");
 
     let html="";
     resultadoComparacao.alterados.forEach(p=>{
-        html+=`<h4>ID: ${p.id}</h4>`;
-        html+=`<table class="tabela"><tr><th>Campo</th><th>Antes</th><th>Depois</th></tr>`;
+        html+=`<h4>${p.id}</h4><table class="tabela"><tr><th>Campo</th><th>Antes</th><th>Depois</th></tr>`;
         p.difs.forEach(d=>{
             html+=`<tr class="dif"><td>${d.c}</td><td>${d.v1}</td><td>${d.v2}</td></tr>`;
         });
         html+="</table>";
     });
+    alterados.innerHTML=html;
 
-    document.getElementById("alterados").innerHTML=html;
+    let g="";
+    resultadoComparacao.geral.forEach(d=>{
+        g+=`<tr class="dif"><td>${d.linha}</td><td>${d.coluna}</td><td>${d.antes}</td><td>${d.depois}</td></tr>`;
+    });
+
+    geral.innerHTML=`
+    <table class="tabela">
+    <tr><th>Linha</th><th>Coluna</th><th>Antes</th><th>Depois</th></tr>
+    ${g}
+    </table>`;
 }
 
 function exportar(){
@@ -284,14 +271,42 @@ function exportar(){
 
     XLSX.utils.book_append_sheet(wb,
         XLSX.utils.json_to_sheet([
-            {Tipo:"Apenas 1",Qtd:resultadoComparacao.apenas1.length},
-            {Tipo:"Apenas 2",Qtd:resultadoComparacao.apenas2.length},
-            {Tipo:"Alterados",Qtd:resultadoComparacao.alterados.length}
+            {Tipo:"Apenas1",Qtd:resultadoComparacao.apenas1.length},
+            {Tipo:"Apenas2",Qtd:resultadoComparacao.apenas2.length},
+            {Tipo:"Alterados",Qtd:resultadoComparacao.alterados.length},
+            {Tipo:"Dif Geral",Qtd:resultadoComparacao.geral.length}
         ]),
         "Resumo"
     );
 
-    XLSX.writeFile(wb,"comparacao.xlsx");
+    XLSX.utils.book_append_sheet(wb,
+        XLSX.utils.json_to_sheet(resultadoComparacao.apenas1.map(i=>({ID:i}))),
+        "Apenas1"
+    );
+
+    XLSX.utils.book_append_sheet(wb,
+        XLSX.utils.json_to_sheet(resultadoComparacao.apenas2.map(i=>({ID:i}))),
+        "Apenas2"
+    );
+
+    let alt=[];
+    resultadoComparacao.alterados.forEach(p=>{
+        p.difs.forEach(d=>{
+            alt.push({ID:p.id,Campo:d.c,Antes:d.v1,Depois:d.v2});
+        });
+    });
+
+    XLSX.utils.book_append_sheet(wb,
+        XLSX.utils.json_to_sheet(alt),
+        "Alterados"
+    );
+
+    XLSX.utils.book_append_sheet(wb,
+        XLSX.utils.json_to_sheet(resultadoComparacao.geral),
+        "Geral"
+    );
+
+    XLSX.writeFile(wb,"comparacao_completa.xlsx");
 }
 </script>
 
